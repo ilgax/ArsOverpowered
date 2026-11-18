@@ -1,6 +1,8 @@
 package com.arsop;
 
+import com.arsop.corruption.Corruption;
 import com.arsop.effect.ArsOpEffects;
+import com.arsop.item.ArsOpItems;
 import com.arsop.entity.ArsOpEntities;
 import com.arsop.event.ArsOpEvents;
 import com.arsop.glyph.ArsOpGlyphs;
@@ -19,6 +21,8 @@ public class ArsOp {
     public ArsOp(IEventBus modEventBus, ModContainer modContainer) {
         ArsOpEffects.register(modEventBus);
         ArsOpEntities.register(modEventBus);
+        ArsOpItems.register(modEventBus);
+        Corruption.register(modEventBus);
         ArsOpEvents.register();
         // Glyphs must be registered in the constructor: Ars Nouveau creates the glyph
         // items from GlyphRegistry during its item RegisterEvent.

@@ -145,6 +145,9 @@ configurations {
 dependencies {
     // Ars Nouveau (pulls GeckoLib, Curios, JEI, TerraBlender, Nuggets etc. transitively)
     implementation "com.hollingsworth.ars_nouveau:ars_nouveau-${minecraft_version}:${ars_version}"
+    // Dev client only (not published): Ars Zero, to compare its multi-row spell screen
+    localRuntime "curse.maven:ars-zero-1377482:8703997"
+    localRuntime "curse.maven:ars-elemental-561470:9652342"
     // Ars's SpellBook implements GeckoLib's GeoItem; needed to compile against it (Ars already ships it at runtime)
     compileOnly "software.bernie.geckolib:geckolib-neoforge-1.21.1:4.6.6"
 

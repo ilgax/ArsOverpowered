@@ -1,6 +1,7 @@
 package com.arsop.glyph.effect;
 
 import com.arsop.ArsOp;
+import com.arsop.entity.NullCharge;
 import com.arsop.entity.NullEntity;
 import com.hollingsworth.arsnouveau.api.spell.AbstractAugment;
 import com.hollingsworth.arsnouveau.api.spell.AbstractEffect;
@@ -17,6 +18,8 @@ import com.hollingsworth.arsnouveau.common.spell.augment.AugmentDurationDown;
 import com.hollingsworth.arsnouveau.common.spell.augment.AugmentExtendTime;
 import com.hollingsworth.arsnouveau.common.spell.augment.AugmentPierce;
 import com.hollingsworth.arsnouveau.common.spell.effect.EffectBreak;
+import com.hollingsworth.arsnouveau.common.spell.method.MethodTouch;
+import net.minecraft.server.level.ServerPlayer;
 import com.hollingsworth.arsnouveau.common.spell.effect.EffectGravity;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
@@ -68,7 +71,9 @@ public class EffectNull extends AbstractEffect {
     public ModConfigSpec.DoubleValue SPEED;
     public ModConfigSpec.IntValue GROW_FIRST_TICKS;
     public ModConfigSpec.DoubleValue GROW_FACTOR;
-    public ModConfigSpec.IntValue MANA_PER_STEP;
+    public ModConfigSpec.DoubleValue MANA_BASE_PCT;
+    public ModConfigSpec.DoubleValue MANA_MAX_SIZE_PCT;
+    public ModConfigSpec.DoubleValue MANA_AMP_PCT;
 
     private EffectNull() {
         super(ArsOp.prefix("glyph_null"), "Null");
@@ -208,7 +213,14 @@ public class EffectNull extends AbstractEffect {
     private void create(Level level, LivingEntity shooter, Vec3 center, SpellStats stats, SpellContext ctx) {
         if (!(level instanceof ServerLevel)) return;
         List<AbstractSpellPart> parts = ctx.getSpell() == null ? Collections.emptyList() : ctx.getSpell().unsafeList();
-        NullEntity.spawn(level, shooter, center, Vec3.ZERO, Params.of(stats, parts));
+        Params params = Params.of(stats, parts);
+        boolean touch = !parts.isEmpty() && parts.get(0) instanceof MethodTouch;
+        if (touch && shooter instanceof ServerPlayer player) {
+            // Grows in place while right click is held; a click leaves it at 1x1.
+            if (!NullCharge.isBusy(player.getUUID())) NullEntity.spawnChargingInPlace(level, player, center, params);
+            return;
+        }
+        NullEntity.spawn(level, shooter, center, Vec3.ZERO, params);
     }
 
     @Override
@@ -222,8 +234,12 @@ public class EffectNull extends AbstractEffect {
                 .defineInRange("grow_first_step_ticks", 6, 1, 400);
         GROW_FACTOR = builder.comment("Each later size step takes this many times longer than the one before (starts fast, slows toward max).")
                 .defineInRange("grow_step_factor", 1.6, 1.0, 10.0);
-        MANA_PER_STEP = builder.comment("Mana spent each time a charging NULL grows into the next size step.")
-                .defineInRange("mana_per_step", 100, 0, 100000);
+        MANA_BASE_PCT = builder.comment("Share of the caster's max mana a 1x1 NULL costs (0.05 = 5%).")
+                .defineInRange("mana_base_percent", 0.05, 0.0, 1.0);
+        MANA_MAX_SIZE_PCT = builder.comment("Share of max mana a NULL at full size (radius 16) costs in total, before Amplify. Size steps in between cost an equal share each.")
+                .defineInRange("mana_max_size_percent", 0.30, 0.0, 1.0);
+        MANA_AMP_PCT = builder.comment("Extra share of max mana per Amplify on the Null.")
+                .defineInRange("mana_amplify_percent", 0.05, 0.0, 1.0);
     }
 
     @Override
@@ -232,9 +248,62 @@ public class EffectNull extends AbstractEffect {
         defaults.put(AugmentAmplify.INSTANCE.getRegistryName(), MAX_AMP);
     }
 
+    /** Null's price is a share of max mana (see {@link #addManaCost}); its flat cost and augment costs are zero. */
     @Override
     public int getDefaultManaCost() {
-        return 400;
+        return 0;
+    }
+
+    @Override
+    protected void addAugmentCostOverrides(Map<ResourceLocation, Integer> overrides) {
+        super.addAugmentCostOverrides(overrides);
+        for (AbstractAugment a : getCompatibleAugments()) overrides.put(a.getRegistryName(), 0);
+    }
+
+    public static double basePct() {
+        return INSTANCE.MANA_BASE_PCT == null ? 0.05 : INSTANCE.MANA_BASE_PCT.get();
+    }
+
+    /** Share of max mana per size step: (full size - 1x1) / 4. */
+    public static double stepPct() {
+        double max = INSTANCE.MANA_MAX_SIZE_PCT == null ? 0.30 : INSTANCE.MANA_MAX_SIZE_PCT.get();
+        return Math.max(0, max - basePct()) / MAX_AOE;
+    }
+
+    public static double ampPct() {
+        return INSTANCE.MANA_AMP_PCT == null ? 0.05 : INSTANCE.MANA_AMP_PCT.get();
+    }
+
+    /**
+     * Adds Null's share-of-max-mana cost: 5% + 5% per Amplify, plus 6.25% per size step for NULLs placed at full
+     * size. Held Projectile/Touch NULLs pay their size steps while growing instead; Wall and Orbit NULLs never grow.
+     */
+    public static void addManaCost(com.hollingsworth.arsnouveau.api.event.SpellCostCalcEvent event) {
+        if (event.context == null || event.context.getSpell() == null) return;
+        List<AbstractSpellPart> parts = event.context.getSpell().unsafeList();
+        int nullIndex = parts.indexOf(INSTANCE);
+        if (nullIndex < 0) return;
+        LivingEntity caster = event.context.getUnwrappedCaster();
+        if (caster == null) return;
+        com.hollingsworth.arsnouveau.api.mana.IManaCap mana = com.hollingsworth.arsnouveau.setup.registry.CapabilityRegistry.getMana(caster);
+        if (mana == null) return;
+
+        Params p = Params.of(parts, nullIndex);
+        boolean paysSizeUpFront = !growsOrFixedSize(parts, nullIndex, caster);
+        double pct = basePct() + ampPct() * p.amp() + (paysSizeUpFront ? stepPct() * p.aoe() : 0);
+        event.currentCost += (int) Math.ceil(mana.getMaxMana() * pct);
+    }
+
+    /** True when size isn't bought at cast: a player's Projectile/Touch NULL (grows), or Wall/Orbit NULLs (fixed small). */
+    private static boolean growsOrFixedSize(List<AbstractSpellPart> parts, int nullIndex, LivingEntity caster) {
+        for (int i = 0; i < nullIndex; i++) {
+            AbstractSpellPart part = parts.get(i);
+            if (part instanceof com.hollingsworth.arsnouveau.common.spell.effect.EffectWall
+                    || part instanceof com.hollingsworth.arsnouveau.common.spell.effect.EffectOrbit) return true;
+        }
+        if (parts.isEmpty() || !(caster instanceof net.minecraft.world.entity.player.Player)) return false;
+        AbstractSpellPart form = parts.get(0);
+        return form instanceof com.hollingsworth.arsnouveau.common.spell.method.MethodProjectile || form instanceof MethodTouch;
     }
 
     @Override
@@ -263,6 +332,6 @@ public class EffectNull extends AbstractEffect {
 
     @Override
     public String getBookDescription() {
-        return "Creates a NULL, a singularity that damages everything it touches (8 damage, +2 per AOE, +4 per Amplify). Add Break after it to make it break blocks without drops, and Gravity to make it pull creatures in. With Projectile a click throws it from your hand; holding right click gathers it above your head, growing (mana per size step), then flies where you look on release and stops in the first block it hits unless Pierced; with Projectile and Wall, a wall of small NULLs flies out; with Orbit, small NULLs circle you. Amplify ignores armor, and with enough Amplify and size it erases creatures outright. It never touches its caster. Base size 1x1, radius doubles with each AOE up to 16.";
+        return "Creates a NULL, a singularity that damages everything it touches (8 damage, +2 per AOE, +4 per Amplify). Add Break after it to make it break blocks without drops, and Gravity to make it pull creatures in. With Touch it appears at the target and grows there while you hold right click. With Projectile a click throws it from your hand; holding right click gathers it above your head, growing (mana per size step), then flies where you look on release and stops in the first block it hits unless Pierced; with Projectile and Wall, a wall of small NULLs flies out; with Orbit, small NULLs circle you. Amplify ignores armor, and with enough Amplify and size it erases creatures outright. It never touches its caster. Base size 1x1, radius doubles with each AOE up to 16. Costs 5% of your max mana, +5% per Amplify; growing to full size costs up to 30% in total.";
     }
 }

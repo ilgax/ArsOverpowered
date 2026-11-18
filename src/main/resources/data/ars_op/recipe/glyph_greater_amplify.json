@@ -1,0 +1,13 @@
+{
+  "type": "ars_nouveau:glyph",
+  "exp": 40,
+  "inputs": [
+    { "item": "ars_nouveau:glyph_amplify" },
+    { "item": "ars_nouveau:glyph_amplify" },
+    { "item": "ars_nouveau:source_gem_block" }
+  ],
+  "output": {
+    "count": 1,
+    "id": "ars_op:glyph_greater_amplify"
+  }
+}

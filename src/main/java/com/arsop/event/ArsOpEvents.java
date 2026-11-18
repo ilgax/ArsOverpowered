@@ -1,8 +1,10 @@
 package com.arsop.event;
 
 import com.arsop.entity.NullCharge;
+import com.arsop.glyph.NullFormValidator;
 import com.arsop.effect.FallenEffect;
 import com.arsop.glyph.effect.EffectFall;
+import com.arsop.glyph.effect.EffectNull;
 import com.hollingsworth.arsnouveau.api.event.SpellCastEvent;
 import com.hollingsworth.arsnouveau.api.event.SpellCostCalcEvent;
 import com.hollingsworth.arsnouveau.api.mana.IManaCap;
@@ -60,6 +62,7 @@ public final class ArsOpEvents {
      * Never cheaper than the spell's normal cost. Ars uses this value both to check and to spend mana.
      */
     private static void onSpellCost(SpellCostCalcEvent.Post event) {
+        EffectNull.addManaCost(event);
         int fallIndex = fallIndex(event.context.getSpell());
         if (fallIndex < 0) return;
         LivingEntity caster = event.context.getUnwrappedCaster();
@@ -80,6 +83,10 @@ public final class ArsOpEvents {
         // Holding right click to grow a NULL auto-repeats item use; don't recast meanwhile.
         if (event.getEntity() instanceof Player p && !p.level().isClientSide && NullCharge.isBusy(p.getUUID())) {
             event.setCanceled(true);
+            return;
+        }
+        if (event.spell != null && NullFormValidator.isSelfNull(event.spell.unsafeList())) {
+            deny(event, Component.translatable("ars_nouveau.spell.validation.exists." + NullFormValidator.CODE));
             return;
         }
         int fallIndex = fallIndex(event.spell);

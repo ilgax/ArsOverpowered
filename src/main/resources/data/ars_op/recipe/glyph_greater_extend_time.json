@@ -1,0 +1,13 @@
+{
+  "type": "ars_nouveau:glyph",
+  "exp": 40,
+  "inputs": [
+    { "item": "ars_nouveau:glyph_extend_time" },
+    { "item": "ars_nouveau:glyph_extend_time" },
+    { "item": "ars_nouveau:source_gem_block" }
+  ],
+  "output": {
+    "count": 1,
+    "id": "ars_op:glyph_greater_extend_time"
+  }
+}

@@ -87,6 +87,8 @@ public class NullEntity extends Entity {
 
     // Charging (server only, not saved: a reload just releases it).
     @Nullable private EffectNull.Params chargeParams;
+    /** Charging where it was placed (Touch) instead of above the head. */
+    private boolean inPlace;
     /** Size progress in AOE steps; the integer part is the last checkpoint reached. */
     private float chargeProgress;
     /** Highest step already paid for. */
@@ -170,8 +172,36 @@ public class NullEntity extends Entity {
         return n;
     }
 
-    public boolean isCharging() {
+    /** Growing above the caster's head (thrown NULL). Synced, so it works on both sides. */
+    public boolean isAnchoredCharge() {
         return entityData.get(CHARGE_OWNER) >= 0;
+    }
+
+    /** Still growing, above the head or in place (server side). */
+    public boolean isCharging() {
+        return isAnchoredCharge() || chargeParams != null;
+    }
+
+    /**
+     * Touch -> Null: appears at the target at 1x1 and grows in place while the caster holds right click
+     * (same curve, mana per step and cues as a thrown NULL). On release it stays and its lifetime starts.
+     */
+    public static NullEntity spawnChargingInPlace(Level level, LivingEntity owner, Vec3 center, EffectNull.Params params) {
+        NullEntity n = new NullEntity(ArsOpEntities.NULL.get(), level);
+        n.ownerId = owner.getUUID();
+        n.chargeParams = params;
+        n.inPlace = true;
+        n.applyStep(params.withAoe(0));
+        n.pierce = params.pierce() > 0;
+        n.breaks = params.breaks();
+        n.pull = params.pull();
+        n.life = params.withAoe(0).life();
+        n.setRadius(EffectNull.Params.radiusFor(0));
+        n.setPos(center);
+        level.addFreshEntity(n);
+        NullCharge.start(owner.getUUID(), n);
+        level.playSound(null, center.x, center.y, center.z, SoundEvents.WARDEN_SONIC_CHARGE, SoundSource.PLAYERS, 1.5f, 0.5f);
+        return n;
     }
 
     /** True once a charging NULL has reached its full size. */
@@ -201,15 +231,17 @@ public class NullEntity extends Entity {
     private void tickCharge(ServerLevel server, LivingEntity owner) {
         EffectNull.Params params = chargeParams;
         if (params == null) {
-            release(owner);
+            finishCharge(owner);
             return;
         }
         chargeTicks++;
         boolean held = NullCharge.isHeld(owner.getUUID()) || chargeTicks <= CHARGE_GRACE;
         if (!held) {
-            release(owner);
+            finishCharge(owner);
             return;
         }
+        // Touch: wait like the projectile does, so a click doesn't start growing.
+        if (inPlace && chargeTicks <= NullCharge.HOLD_THRESHOLD) return;
         int cap = params.aoe();
         if (chargeProgress >= cap) {
             if (!isChargeMax()) {
@@ -250,12 +282,31 @@ public class NullEntity extends Entity {
 
     private boolean payStep(LivingEntity owner) {
         if (owner instanceof Player p && p.isCreative()) return true;
-        int cost = EffectNull.INSTANCE.MANA_PER_STEP == null ? 100 : EffectNull.INSTANCE.MANA_PER_STEP.get();
-        if (cost <= 0) return true;
         IManaCap mana = CapabilityRegistry.getMana(owner);
-        if (mana == null || mana.getCurrentMana() < cost) return false;
+        if (mana == null) return false;
+        double cost = Math.ceil(mana.getMaxMana() * EffectNull.stepPct());
+        if (cost <= 0) return true;
+        if (mana.getCurrentMana() < cost) return false;
         mana.removeMana(cost);
         return true;
+    }
+
+    private void finishCharge(LivingEntity owner) {
+        if (inPlace) settle(owner);
+        else release(owner);
+    }
+
+    /** Touch NULL let go: keeps its last checkpoint size where it is, and starts its lifetime. */
+    private void settle(LivingEntity owner) {
+        int step = (int) Math.floor(chargeProgress);
+        setRadius(EffectNull.Params.radiusFor(step));
+        if (chargeParams != null) life = chargeParams.withAoe(step).life();
+        chargeParams = null;
+        inPlace = false;
+        entityData.set(CHARGE_MAX, false);
+        if (owner != null) NullCharge.stop(owner.getUUID(), this);
+        else if (ownerId != null) NullCharge.stop(ownerId, this);
+        age = 0;
     }
 
     private void release(LivingEntity owner) {
@@ -306,7 +357,7 @@ public class NullEntity extends Entity {
     @Override
     public void tick() {
         super.tick();
-        if (isCharging()) {
+        if (isAnchoredCharge()) {
             Entity anchor = level().getEntity(entityData.get(CHARGE_OWNER));
             if (anchor == null || !anchor.isAlive()) {
                 if (!level().isClientSide) collapse();
@@ -314,7 +365,7 @@ public class NullEntity extends Entity {
             }
             if (!level().isClientSide && anchor instanceof LivingEntity living) {
                 tickCharge((ServerLevel) level(), living);
-                if (!isCharging()) return; // just released: starts flying next tick
+                if (!isAnchoredCharge()) return; // just released: starts flying next tick
             }
             setPos(chargePosition(anchor));
             if (level().isClientSide) return;
@@ -335,7 +386,13 @@ public class NullEntity extends Entity {
         }
         if (level().isClientSide) return;
 
-        if (++age > life || getY() < level().getMinBuildHeight() - 64 || getY() > level().getMaxBuildHeight() + 256) {
+        if (!level().isClientSide && inPlace && chargeParams != null) {
+            Entity o = ownerId == null ? null : ((ServerLevel) level()).getEntity(ownerId);
+            if (o instanceof LivingEntity living && living.isAlive()) tickCharge((ServerLevel) level(), living);
+            else settle(null);
+        }
+        if (!inPlace) age++;
+        if (age > life || getY() < level().getMinBuildHeight() - 64 || getY() > level().getMaxBuildHeight() + 256) {
             collapse();
             return;
         }
@@ -386,7 +443,7 @@ public class NullEntity extends Entity {
      */
     @Override
     public void lerpTo(double x, double y, double z, float yRot, float xRot, int steps) {
-        if (isOrbiting() || isCharging()) return;
+        if (isOrbiting() || isAnchoredCharge()) return;
         if (position().distanceToSqr(x, y, z) > 2.25) super.lerpTo(x, y, z, yRot, xRot, steps);
     }
 
@@ -428,15 +485,20 @@ public class NullEntity extends Entity {
     }
 
     private void erase(ServerLevel server, Entity e, @Nullable Entity owner) {
-        if (e instanceof Player p) {
-            if (p.isCreative() || p.isSpectator()) return;
-            // Players can't be discarded; generic_kill bypasses armor, invulnerability and totems.
-            p.hurt(new DamageSource(server.damageSources().genericKill().typeHolder(), this, owner), Float.MAX_VALUE);
-            return;
-        }
-        server.sendParticles(ParticleTypes.SQUID_INK, e.getX(), e.getY(0.5), e.getZ(), 12,
-                e.getBbWidth() / 2, e.getBbHeight() / 2, e.getBbWidth() / 2, 0.02);
-        e.discard();
+        NullErasure.erase(server, e, this, owner);
+    }
+
+    /** True if this NULL deletes what it touches (checked by {@link NullErasure} at the start of each tick). */
+    boolean discardsNow() {
+        return discards;
+    }
+
+    /** The erase pass, run by {@link NullErasure} before any entity ticks. */
+    void eraseTouching(ServerLevel server) {
+        Entity owner;
+        if (isAnchoredCharge()) owner = server.getEntity(entityData.get(CHARGE_OWNER));
+        else owner = ownerId == null ? null : server.getEntity(ownerId);
+        hitEntities(server, owner, getRadius());
     }
 
     /** Living things within range are dragged to the center; inside the NULL they're held there. */

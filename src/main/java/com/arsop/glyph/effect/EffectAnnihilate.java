@@ -120,6 +120,6 @@ public class EffectAnnihilate extends AbstractEffect {
 
     @Override
     public String getBookDescription() {
-        return "Erases the target from existence. Deals void damage that ignores armor and resistance, and destroys any block regardless of hardness.";
+        return "Forbidden: castable only from the Codex of Ruin. Erases the target from existence. Deals void damage that ignores armor and resistance, and destroys any block regardless of hardness.";
     }
 }

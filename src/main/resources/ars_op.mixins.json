@@ -4,12 +4,18 @@
   "package": "com.arsop.mixin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
+    "EntityMixin",
+    "LivingEntityAccessor",
     "MeleeAttackGoalMixin",
     "MobMixin",
     "ServerCommonPacketListenerImplMixin",
-    "ServerGamePacketListenerImplMixin"
+    "ServerGamePacketListenerImplMixin",
+    "SpellContextMixin"
   ],
-  "client": [],
+  "client": [
+    "client.BaseBookMixin",
+    "client.GuiSpellBookMixin"
+  ],
   "injectors": {
     "defaultRequire": 1
   }

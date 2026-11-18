@@ -1,0 +1,19 @@
+{
+  "type": "ars_nouveau:book_upgrade",
+  "category": "misc",
+  "ingredients": [
+    { "item": "ars_nouveau:archmage_spell_book" },
+    { "item": "minecraft:nether_star" },
+    { "item": "minecraft:wither_skeleton_skull" },
+    { "item": "minecraft:wither_skeleton_skull" },
+    { "item": "minecraft:echo_shard" },
+    { "item": "minecraft:echo_shard" },
+    { "item": "minecraft:crying_obsidian" },
+    { "item": "minecraft:crying_obsidian" },
+    { "item": "ars_nouveau:manipulation_essence" }
+  ],
+  "result": {
+    "count": 1,
+    "id": "ars_op:codex_of_ruin"
+  }
+}
