@@ -1,0 +1,14 @@
+{
+  "type": "ars_nouveau:glyph",
+  "exp": 55,
+  "inputs": [
+    { "item": "minecraft:heavy_core" },
+    { "item": "minecraft:anvil" },
+    { "item": "minecraft:echo_shard" },
+    { "item": "ars_nouveau:abjuration_essence" }
+  ],
+  "output": {
+    "count": 1,
+    "id": "ars_op:glyph_fall"
+  }
+}

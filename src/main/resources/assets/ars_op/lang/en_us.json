@@ -1,0 +1,22 @@
+{
+  "ars_op.glyph_name.glyph_annihilate": "Annihilate",
+  "item.ars_op.glyph_annihilate": "Annihilate",
+  "ars_op.glyph_desc.glyph_annihilate": "Erases the target from existence. Deals void damage that ignores armor and resistance, and destroys any block regardless of hardness.",
+  "ars_nouveau.augment_desc.glyph_annihilate_glyph_amplify": "Even more damage. As if it mattered.",
+  "ars_nouveau.augment_desc.glyph_annihilate_glyph_dampen": "Reduces damage dealt.",
+  "ars_nouveau.augment_desc.glyph_annihilate_glyph_aoe": "Annihilates a larger area of blocks.",
+  "ars_nouveau.augment_desc.glyph_annihilate_glyph_pierce": "Annihilates blocks deeper into the surface.",
+
+  "ars_op.glyph_name.glyph_fall": "Fall",
+  "item.ars_op.glyph_fall": "Fall",
+  "ars_op.glyph_desc.glyph_fall": "A single word that commands everything to the ground. Deals no damage. The creature it strikes is left crawling, hitting weaker and unable to heal, while every other creature around it is slammed and pinned, unable to move or attack. On yourself, you feel it as if struck, or as if caught in the area with AOE. On a block, everything nearby is pinned. The fallen hear nothing but the one who cast it. Needs at least 80% of your max mana. Drains 80% of your current mana, +5% per Extend Time or AOE (4 upgrades max, 100%). Only castable from an Archmage or Creative spell book.",
+  "ars_nouveau.augment_desc.glyph_fall_glyph_aoe": "+4 blocks of radius and +5% mana drain each. Shares 4 upgrade slots with Extend Time.",
+  "ars_nouveau.augment_desc.glyph_fall_glyph_extend_time": "+1 second of Fallen and +5% mana drain each. Shares 4 upgrade slots with AOE.",
+  "ars_nouveau.augment_desc.glyph_fall_glyph_duration_down": "-1 second of Fallen each (minimum 1 second).",
+
+  "effect.ars_op.fallen": "Fallen",
+  "effect.ars_op.fallen.description": "Level I: crawling, 40% damage, 42% attack speed, no healing. Level II: pinned to the ground, unable to move or deal damage.",
+  "ars_op.fall.needs_archmage": "Fall can only be cast from an Archmage or Creative spell book.",
+  "ars_op.fall.too_many_upgrades": "Fall allows at most %s Extend Time and AOE augments combined.",
+  "ars_op.fall.needs_mana": "Fall needs at least %s%% of your max mana."
+}
