@@ -1,5 +1,6 @@
 package com.arsop.event;
 
+import com.arsop.entity.NullCharge;
 import com.arsop.effect.FallenEffect;
 import com.arsop.glyph.effect.EffectFall;
 import com.hollingsworth.arsnouveau.api.event.SpellCastEvent;
@@ -76,6 +77,11 @@ public final class ArsOpEvents {
      * combined; and the caster must hold at least 80% of their max mana (creative players exempt, as in Ars).
      */
     private static void onSpellCast(SpellCastEvent event) {
+        // Holding right click to grow a NULL auto-repeats item use; don't recast meanwhile.
+        if (event.getEntity() instanceof Player p && !p.level().isClientSide && NullCharge.isBusy(p.getUUID())) {
+            event.setCanceled(true);
+            return;
+        }
         int fallIndex = fallIndex(event.spell);
         if (fallIndex < 0) return;
         ItemStack tool = event.context.getCasterTool();

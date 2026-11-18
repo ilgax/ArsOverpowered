@@ -1,0 +1,14 @@
+{
+  "type": "ars_nouveau:glyph",
+  "exp": 55,
+  "inputs": [
+    { "item": "minecraft:nether_star" },
+    { "item": "minecraft:ender_eye" },
+    { "item": "minecraft:echo_shard" },
+    { "item": "ars_nouveau:manipulation_essence" }
+  ],
+  "output": {
+    "count": 1,
+    "id": "ars_op:glyph_null"
+  }
+}
