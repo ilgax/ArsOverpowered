@@ -65,7 +65,9 @@ public final class ArsOpEvents {
         IManaCap mana = CapabilityRegistry.getMana(caster);
         if (mana == null) return;
         double fraction = EffectFall.manaFraction(countUpgrades(event.context.getSpell(), fallIndex));
-        int drain = (int) Math.ceil(mana.getCurrentMana() * fraction);
+        // Never cheaper than the spell's normal cost (Fall is end-game: 300 + form/augments).
+        // Rounded down so a 100% drain never exceeds what the caster actually has.
+        int drain = (int) Math.floor(mana.getCurrentMana() * fraction);
         event.currentCost = Math.max(event.currentCost, drain);
     }
 
